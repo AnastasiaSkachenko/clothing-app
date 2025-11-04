@@ -160,6 +160,7 @@ source = { editable = "." }
 dependencies = [
     { name = "couchbase-client" },
     { name = "fastapi", extra = ["standard-no-fastapi-cloud-cli"] },
+    { name = "httpx" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pyjwt" },
     { name = "sqlmodel" },
@@ -171,6 +172,7 @@ dependencies = [
 requires-dist = [
     { name = "couchbase-client", editable = "../lib/py/couchbase-client" },
     { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.116.1" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = "==3.2.9" },
     { name = "pyjwt", extras = ["cryptography"], specifier = ">=2.10.1" },
     { name = "sqlmodel", specifier = "==0.0.24" },

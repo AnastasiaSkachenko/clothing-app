@@ -117,12 +117,20 @@ TWILIO_FROM_PHONE_NUMBER = EnvVarSpec(
     is_optional=True
 )
 
+## Lykdat ##
+
+LYKDAT_API_KEY = EnvVarSpec(
+    id="LYKDAT_API_KEY",
+    is_secret=True
+)
+
 #### Validation ####
 VALIDATED_ENV_VARS = [
     HTTP_AUTORELOAD,
     HTTP_EXPOSE_ERRORS,
     HTTP_PORT,
     LOG_LEVEL,
+    LYKDAT_API_KEY,
 ]
 
 VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)
@@ -215,3 +223,7 @@ def get_twilio_conf():
         auth_token=env.parse(TWILIO_AUTH_TOKEN),
         from_phone_number=env.parse(TWILIO_FROM_PHONE_NUMBER),
     )
+
+def get_lykdat_api_key() -> str:
+    """Get Lykdat API key."""
+    return env.parse(LYKDAT_API_KEY)

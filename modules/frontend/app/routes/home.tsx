@@ -5,9 +5,9 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Badge } from "~/components/ui/badge";
-import { Trash2, Plus, ExternalLink, Loader2 } from "lucide-react";
+import { Trash2, Plus, ExternalLink, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient, type ImageUrl } from "@/lib/apiClient";
+import { apiClient, type ImageUrl, type SearchSimilarResponse } from "@/lib/apiClient";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -22,6 +22,9 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [newUrl, setNewUrl] = useState("");
   const [newTitle, setNewTitle] = useState("");
+  const [searchUrl, setSearchUrl] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchSimilarResponse | null>(null);
 
   // Load URLs on mount
   useEffect(() => {
@@ -80,16 +83,175 @@ export default function Home() {
     }
   };
 
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!searchUrl.trim()) {
+      toast.error("Please enter an image URL to search");
+      return;
+    }
+
+    try {
+      setSearching(true);
+      const results = await apiClient.searchSimilarProducts({
+        image_url: searchUrl,
+      });
+      setSearchResults(results);
+      toast.success("Search completed!");
+    } catch (error) {
+      console.error("Failed to search:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to search for similar products");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-foreground">URL Manager</h1>
+          <h1 className="text-4xl font-bold text-foreground">Visual Search</h1>
           <p className="text-muted-foreground">
-            Store and manage your image URLs in one place
+            Search for similar clothing products using image URLs
           </p>
         </div>
+
+        {/* Search Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Search Similar Products</CardTitle>
+            <CardDescription>
+              Enter an image URL to find visually similar clothing items
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSearch} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="searchUrl">Image URL *</Label>
+                <Input
+                  id="searchUrl"
+                  type="url"
+                  placeholder="https://example.com/clothing-image.jpg"
+                  value={searchUrl}
+                  onChange={(e) => setSearchUrl(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={searching} className="w-full">
+                {searching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Search Similar Products
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Search Results */}
+        {searchResults && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Search Results</CardTitle>
+              <CardDescription>
+                Found {searchResults.data.result_groups.length} result group(s)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Query Image */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Query Image</h3>
+                  <img 
+                    src={searchResults.data.query_image} 
+                    alt="Query" 
+                    className="w-full max-w-md mx-auto rounded-lg border"
+                  />
+                </div>
+
+                {/* Result Groups */}
+                {searchResults.data.result_groups.map((group, groupIndex) => (
+                  <div key={groupIndex} className="space-y-4">
+                    <div className="border-t pt-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <h3 className="text-lg font-semibold">
+                          Detected: {group.detected_item.name}
+                        </h3>
+                        <Badge variant="secondary">
+                          {(group.detected_item.detection_confidence * 100).toFixed(1)}% confidence
+                        </Badge>
+                      </div>
+                      
+                      {/* Detected Item Image */}
+                      <img 
+                        src={group.detected_item.item_image} 
+                        alt={group.detected_item.name}
+                        className="w-48 h-48 object-cover rounded-lg border mb-4"
+                      />
+
+                      {/* Similar Products */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">
+                          Similar Products ({group.similar_products.length})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {group.similar_products.slice(0, 6).map((product) => (
+                            <div 
+                              key={product.id}
+                              className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                            >
+                              <img 
+                                src={product.images[0]} 
+                                alt={product.name}
+                                className="w-full h-48 object-cover"
+                              />
+                              <div className="p-3 space-y-2">
+                                <h5 className="font-medium text-sm line-clamp-2">
+                                  {product.name}
+                                </h5>
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-muted-foreground">
+                                    {product.brand_name || 'Unknown Brand'}
+                                  </span>
+                                  <Badge variant="outline">
+                                    {(product.score * 100).toFixed(0)}% match
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-primary">
+                                    {product.currency} {product.price}
+                                  </span>
+                                  {product.url && (
+                                    <a
+                                      href={product.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    >
+                                      View
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Add URL Form */}
         <Card>

@@ -52,6 +52,8 @@ tools:
             - { name: COUCHBASE_PASSWORD, value: password }
             - { name: COUCHBASE_BUCKET, value: main }
             - { name: COUCHBASE_PROTOCOL, value: couchbase }
+
+            - { name: LYKDAT_API_KEY, value: 4199f540d7086ef5e8723faa5201060fc262e08b15b105d409f81446f5a87345 }
           mounts:
             - { path: /root/.cache/, source: { type: volume, scope: project, id: api-dependency-cache } }
             - { path: /lib/py, source: { type: repo, path: /lib/py, repo: "#pt-clj pt/module-project-ref" } }

@@ -2,12 +2,14 @@
 Image URL management routes.
 """
 
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 from fastapi import APIRouter, Request, HTTPException, Query
 from pydantic import BaseModel, HttpUrl
 
 from ..couchbase.collections.images import ImagesDoc, ImagesCollection, ListParams
+from ..clients.lykdat import LykdatClient
+from ..conf import get_lykdat_api_key
 from ..utils import log
 
 logger = log.get_logger(__name__)
@@ -28,6 +30,11 @@ class UpdateImageRequest(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     tags: Optional[list[str]] = None
+
+
+class SearchSimilarRequest(BaseModel):
+    """Request model for searching similar products."""
+    image_url: HttpUrl
 
 
 def get_images_collection(request: Request) -> ImagesCollection:
@@ -142,3 +149,32 @@ async def delete_image(request: Request, image_id: UUID):
     
     logger.info(f"Deleted image with ID: {image_id}")
     return None
+
+
+@router.post("/search-similar", response_model=dict[str, Any])
+async def search_similar_products(request: Request, search_request: SearchSimilarRequest):
+    """
+    Search for similar products based on an image URL using Lykdat visual search API.
+    
+    This endpoint takes an image URL and returns visually similar products from the catalog.
+    """
+    try:
+        # Initialize Lykdat client
+        api_key = get_lykdat_api_key()
+        lykdat_client = LykdatClient(api_key)
+        
+        # Perform the search
+        logger.info(f"Searching for similar products for image: {search_request.image_url}")
+        results = await lykdat_client.search_by_image(
+            image_url=str(search_request.image_url)
+        )
+        
+        logger.info(f"Found {len(results.get('data', {}).get('result_groups', []))} result groups")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error searching for similar products: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to search for similar products: {str(e)}"
+        )
