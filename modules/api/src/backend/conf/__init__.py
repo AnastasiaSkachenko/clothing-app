@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 from ..utils import auth, env, log
 from ..utils.env import EnvVarSpec
+from . import temporal
 from . import couchbase
 
 logger = log.get_logger(__name__)
@@ -132,6 +133,8 @@ VALIDATED_ENV_VARS = [
     LOG_LEVEL,
     LYKDAT_API_KEY,
 ]
+
+VALIDATED_ENV_VARS.extend(temporal.VALIDATED_ENV_VARS)
 
 VALIDATED_ENV_VARS.extend(couchbase.VALIDATED_ENV_VARS)
 

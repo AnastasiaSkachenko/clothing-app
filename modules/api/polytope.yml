@@ -131,3 +131,17 @@ tools:
           restart-policy: never
           cmd: ./bin/add-couchbase-collection {pt.param name}
           create: always
+
+  api-add-temporal-workflow:
+    info: Scaffold a new Temporal workflow with activity, Pydantic models, and automatic registration.
+    params:
+      - id: name
+        info: The name of the workflow to create (e.g., 'greeting', 'data-processing')
+        type: str
+    run:
+      - tool: api
+        args:
+          id: api-add-temporal-workflow
+          restart-policy: never
+          cmd: ./bin/add-temporal-workflow {pt.param name}
+          create: always

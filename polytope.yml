@@ -4,6 +4,8 @@ include:
   - modules/couchbase
   - modules/api
   - modules/frontend
+  - modules/temporal
+  - modules/postgres
 tools:
   default:
     run:
@@ -11,3 +13,6 @@ tools:
       - tool: "config-manager"
       - tool: "api"
       - tool: "frontend"
+      - tool: "temporal"
+      - tool: "temporal-ui"
+      - tool: "postgres"

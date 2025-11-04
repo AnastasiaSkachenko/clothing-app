@@ -10,6 +10,7 @@ from pydantic import BaseModel, HttpUrl
 from ..couchbase.collections.images import ImagesDoc, ImagesCollection, ListParams
 from ..clients.lykdat import LykdatClient
 from ..conf import get_lykdat_api_key
+from ..workflows.image_processing import ImageProcessingWorkflow
 from ..utils import log
 
 logger = log.get_logger(__name__)
@@ -177,4 +178,121 @@ async def search_similar_products(request: Request, search_request: SearchSimila
         raise HTTPException(
             status_code=500,
             detail=f"Failed to search for similar products: {str(e)}"
+        )
+
+
+@router.post("/process", response_model=dict[str, Any], status_code=202)
+async def process_image_with_workflow(request: Request, image_request: CreateImageRequest):
+    """
+    Process an image using Temporal workflow for state management.
+    
+    This endpoint:
+    1. Starts a Temporal workflow to manage the image processing state
+    2. Stores image metadata in Couchbase
+    3. Optionally runs visual similarity search
+    4. Returns workflow ID for tracking progress
+    
+    The workflow handles retries, failure recovery, and maintains processing state.
+    """
+    if not hasattr(request.app.state, 'temporal_client'):
+        raise HTTPException(status_code=503, detail="Temporal is not configured")
+    
+    try:
+        temporal_client = request.app.state.temporal_client
+        
+        # Generate a unique workflow ID
+        workflow_id = f"image-processing-{UUID.uuid4()}"
+        
+        # Start the workflow with simplified parameters
+        logger.info(f"Starting image processing workflow: {workflow_id}")
+        handle = await temporal_client.client.start_workflow(
+            ImageProcessingWorkflow.run,
+            args=[
+                str(image_request.url),
+                image_request.title,
+                image_request.description,
+                image_request.tags,
+                True  # run_similarity_search
+            ],
+            id=workflow_id,
+            task_queue=temporal_client.config.task_queue,
+        )
+        
+        logger.info(f"Workflow started with ID: {workflow_id}")
+        
+        return {
+            "workflow_id": workflow_id,
+            "status": "processing",
+            "message": "Image processing workflow started successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error starting image processing workflow: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start image processing workflow: {str(e)}"
+        )
+
+
+@router.get("/workflow/{workflow_id}/status", response_model=dict[str, Any])
+async def get_workflow_status(request: Request, workflow_id: str):
+    """
+    Get the current status of an image processing workflow.
+    
+    Returns the workflow state including processing status, completion status,
+    and any results or errors.
+    """
+    if not hasattr(request.app.state, 'temporal_client'):
+        raise HTTPException(status_code=503, detail="Temporal is not configured")
+    
+    try:
+        temporal_client = request.app.state.temporal_client
+        
+        # Get the workflow handle
+        handle = temporal_client.client.get_workflow_handle(workflow_id)
+        
+        # Query the workflow state
+        state = await handle.query(ImageProcessingWorkflow.get_state)
+        
+        return {
+            "workflow_id": workflow_id,
+            "state": state.model_dump()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting workflow status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get workflow status: {str(e)}"
+        )
+
+
+@router.get("/workflow/{workflow_id}/result", response_model=dict[str, Any])
+async def get_workflow_result(request: Request, workflow_id: str):
+    """
+    Get the final result of a completed image processing workflow.
+    
+    This endpoint waits for the workflow to complete and returns the result.
+    If the workflow is still running, it will wait until completion.
+    """
+    if not hasattr(request.app.state, 'temporal_client'):
+        raise HTTPException(status_code=503, detail="Temporal is not configured")
+    
+    try:
+        temporal_client = request.app.state.temporal_client
+        
+        # Get the workflow handle
+        handle = temporal_client.client.get_workflow_handle(workflow_id)
+        
+        # Wait for the workflow to complete and get result
+        logger.info(f"Waiting for workflow {workflow_id} to complete...")
+        result = await handle.result()
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting workflow result: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get workflow result: {str(e)}"
         )
